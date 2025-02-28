@@ -1,0 +1,37 @@
+name: RMarkdown Auto Update
+
+on:
+  push:
+    branches:
+      - main  # o il branch che stai utilizzando
+    paths:
+      - "Codice.Rmd"  # Aggiungi qui il percorso del tuo file .Rmd
+      
+jobs:
+  update_html:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Set up R
+        uses: rocker/r-ver@v4.1.1
+        with:
+          r-version: '4.1.1'
+
+      - name: Install dependencies
+        run: |
+          install.packages('rmarkdown')
+          install.packages('googlesheets4')
+
+      - name: Run RMarkdown file
+        run: |
+          Rscript -e "rmarkdown::render('Codice.Rmd')"
+
+      - name: Commit changes and push to repository
+        uses: EndBug/add-and-commit@v7
+        with:
+          author_name: 'github-actions[bot]'
+          author_email: 'github-actions[bot]@users.noreply.github.com'
+          message: 'Automated update of HTML'
