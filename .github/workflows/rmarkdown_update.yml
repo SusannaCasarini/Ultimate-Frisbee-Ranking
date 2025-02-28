@@ -3,10 +3,10 @@ name: RMarkdown Auto Update
 on:
   push:
     branches:
-      - main  # o il branch che stai utilizzando
+      - main
     paths:
-      - "Codice.Rmd"  # Aggiungi qui il percorso del tuo file .Rmd
-      
+      - "Codice.Rmd"
+
 jobs:
   update_html:
     runs-on: ubuntu-latest
@@ -27,7 +27,7 @@ jobs:
 
       - name: Run RMarkdown file
         run: |
-          Rscript -e "rmarkdown::render('Codice.Rmd')"
+          Rscript -e "rmarkdown::render('Codice.Rmd', output_dir = 'docs')"
 
       - name: Commit changes and push to repository
         uses: EndBug/add-and-commit@v7
