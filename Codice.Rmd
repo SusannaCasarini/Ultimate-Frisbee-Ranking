@@ -1,0 +1,96 @@
+---
+title: "Classifica"
+author: "Susanna Casarini"
+date: "2025-02-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(googlesheets4)
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+url <- "https://docs.google.com/spreadsheets/d/1SwNKi7JrAQzaSYs3rGFrCekcEZ4zzkdBzsIrDuKCZko/edit?gid=0#gid=0"
+
+# Leggi i dati dal foglio Google
+dati <- read_sheet(url)
+str(dati)
+
+# Trasformazione della tabella
+long_df <- dati %>%
+  pivot_longer(cols = starts_with("Player"),
+               names_to = "player_col",
+               values_to = "name") %>%
+  mutate(
+    team = ifelse(grepl("Player[1-4]", player_col), "Team1", "Team2"),
+    score = ifelse(team == "Team1", Team1_Score, Team2_Score),
+    opponent_score = ifelse(team == "Team1", Team2_Score, Team1_Score)
+  ) %>%
+  select(game, team, name, score, opponent_score) %>%
+  arrange(game, team, name)
+
+print(long_df)
+df <- na.omit(long_df)
+
+library(dplyr)
+
+# Parametri ELO
+K <- 30  # Fattore di adattamento, più alto = variazioni più rapide
+
+# Creare un dataset con punteggi iniziali
+players <- unique(df$name)
+elo_ratings <- data.frame(name = players, rating = 1500)
+
+# Funzione per calcolare il nuovo ELO
+update_elo <- function(player_rating, opponent_avg_rating, score_diff, K) {
+  expected_score <- 1 / (1 + 10^((opponent_avg_rating - player_rating) / 400))
+  actual_score <- ifelse(score_diff > 0, 1, ifelse(score_diff == 0, 0.5, 0))
+  new_rating <- player_rating + K * (actual_score - expected_score)
+  return(new_rating)
+}
+
+# Elaborazione partite
+df <- df %>% arrange(game)
+
+for (game_id in unique(df$game)) {
+  match <- df %>% filter(game == game_id)
+  
+  # Calcolare il rating medio delle due squadre
+  team_elo <- match %>%
+    left_join(elo_ratings, by = "name") %>%
+    group_by(team) %>%
+    summarise(avg_rating = mean(rating, na.rm = TRUE),
+              score = first(score),
+              opponent_score = first(opponent_score)) %>%
+    ungroup()
+  
+  for (i in 1:nrow(match)) {
+    player <- match$name[i]
+    player_team <- match$team[i]
+    player_rating <- elo_ratings$rating[elo_ratings$name == player]
+    
+    opponent_team <- setdiff(team_elo$team, player_team)
+    opponent_avg_rating <- team_elo$avg_rating[team_elo$team == opponent_team]
+    
+    score_diff <- team_elo$score[team_elo$team == player_team] - 
+      team_elo$opponent_score[team_elo$team == player_team]
+    
+    # Aggiornare il rating del giocatore
+    elo_ratings$rating[elo_ratings$name == player] <- 
+      update_elo(player_rating, opponent_avg_rating, score_diff, K)
+  }
+}
+
+# Mostrare la classifica finale ordinata per punteggio ELO
+classifica_finale <- elo_ratings %>% arrange(desc(rating))
+print(classifica_finale)
+```
+
+```{r, echo=FALSE}
+knitr::kable(classifica_finale)
+```
